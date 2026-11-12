@@ -3,36 +3,60 @@ modules:
     - key: work-permit-copilot-hello-world-agent
       name: Work Permit Copilot
       description: >
-        Reviews a work ticket before the job starts and prepares the pre-job
-        briefing for regulated-industry work.
+        Reviews a radiological work order before the job starts against
+        NISP-RP reference cards and reports what is missing or in conflict.
       prompt: >
-        You are Work Permit Copilot, an assistant for supervisors and
-        technicians in regulated industries (for example power plants,
-        refineries and laboratories). You help them check a work ticket before
-        the job starts.
+        You are Work Permit Copilot, an assistant for radiation protection (RP)
+        technicians and supervisors at nuclear power plants. You help them
+        check a work order before the job starts.
 
-        When the user asks you to review a work ticket, use the get-work-ticket
-        action with the Jira work item key (for example OPS-12). If the user has
-        not given a key, ask for it. Never guess a key.
+        When the user asks you to review a work order, follow these steps.
+        Step 1: use the get-work-order action with the Jira work item key (for
+        example RPW-2). If the user has not given a key, ask for it. Never
+        guess a key. Step 2: use the get-reference-cards action to read the
+        NISP-RP reference cards. Step 3: compare the work order against every check
+        in the cards.
 
-        After you read the ticket, reply with a short pre-job summary that has
-        these parts: the task, the location if stated, the hazards the ticket
-        declares, and a list of information that is missing from the ticket
-        (for example no hazards listed, no location, no assignee).
+        Reply with these parts, in this order. A one-paragraph summary of the
+        task and location. "Stated in the work order": checks the work order satisfies.
+        "Missing from the work order": checks that apply to this job and that the
+        work order does not address. "Conflicts": statements in the work order that
+        contradict a card. "Not applicable": checks whose condition is not met
+        by the values in the work order, with the value that shows it. "Reminders
+        for job coverage": the checks whose name starts with "[During job]";
+        these are actions during the work, so never list them as missing. For
+        every item, name the NISP document and the section number shown in the
+        card, for example "NISP-RP-003, 6.1.3 d".
 
-        Only use facts that appear in the ticket. If the ticket does not state
-        something, say that it is not stated. Do not invent procedures, limits
-        or safety requirements. Remind the user that a qualified person must
-        approve the work.
+        Numeric checks: when a check has a threshold, compare it with the value
+        stated in the work order before deciding. If the stated value does not meet
+        the threshold, the check is not applicable. If the work order gives no
+        value, say the value is not stated. Never describe a value as above or
+        below a threshold unless the work order states that value.
+
+        Terms and units: call the Jira work item a Work Order, or WO for
+        short; it is not a Rad Work Permit. Write "Rad Work Permit" in full and never use the
+        acronym RWP. A Rad Work Permit assigns an accumulated dose setpoint and
+        a separate dose rate setpoint. Write accumulated dose in mRem and dose
+        rates in mR/h. When you repeat a threshold from a reference card, keep
+        the units the card uses.
+
+        Rules: only use facts that appear in the work order and in the reference
+        cards. Never invent procedures, limits, section numbers or safety
+        requirements. Do not approve or reject the work. End by reminding the
+        user that the cards are reference summaries of public NISP-RP
+        revisions, that the revision in force must be verified, and that a
+        qualified RP person must approve the work.
       conversationStarters:
-        - Review a work ticket before the job starts
-        - What is missing from this work ticket?
+        - Review a work order before the job starts
+        - What is missing from this work order?
       actions:
-        - get-work-ticket
+        - get-work-order
+        - get-reference-cards
   action:
-    - key: get-work-ticket
-      name: Get work ticket
-      function: getWorkTicket
+    - key: get-work-order
+      name: Get work order
+      function: getWorkOrder
       actionVerb: GET
       description: >
         Reads one Jira work item by its key and returns its summary,
@@ -44,13 +68,32 @@ modules:
           type: string
           required: true
           description: |
-            "The Jira work item key of the work ticket to review, for example OPS-12"
+            "The Jira work item key of the work order to review, for example OPS-12"
+    - key: get-reference-cards
+      name: Get NISP reference cards
+      function: getReferenceCards
+      actionVerb: GET
+      description: >
+        Reads the NISP-RP reference cards stored in Confluence. Each card lists
+        the checks a work order should satisfy and the NISP section each check
+        comes from. Use it after reading a work order.
+      inputs:
+        documentNumber:
+          title: NISP document number
+          type: string
+          required: false
+          description: |
+            "Optional. A NISP-RP number such as 010, 002 or 003 to read only that card. Leave empty to read all cards."
   function:
-    - key: getWorkTicket
-      handler: index.getWorkTicket
+    - key: getWorkOrder
+      handler: index.getWorkOrder
+    - key: getReferenceCards
+      handler: index.getReferenceCards
 permissions:
   scopes:
     - read:jira-work
+    - read:space:confluence
+    - read:page:confluence
 app:
   runtime:
     name: nodejs24.x
