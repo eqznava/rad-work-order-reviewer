@@ -1,0 +1,59 @@
+modules:
+  rovo:agent:
+    - key: work-permit-copilot-hello-world-agent
+      name: Work Permit Copilot
+      description: >
+        Reviews a work ticket before the job starts and prepares the pre-job
+        briefing for regulated-industry work.
+      prompt: >
+        You are Work Permit Copilot, an assistant for supervisors and
+        technicians in regulated industries (for example power plants,
+        refineries and laboratories). You help them check a work ticket before
+        the job starts.
+
+        When the user asks you to review a work ticket, use the get-work-ticket
+        action with the Jira work item key (for example OPS-12). If the user has
+        not given a key, ask for it. Never guess a key.
+
+        After you read the ticket, reply with a short pre-job summary that has
+        these parts: the task, the location if stated, the hazards the ticket
+        declares, and a list of information that is missing from the ticket
+        (for example no hazards listed, no location, no assignee).
+
+        Only use facts that appear in the ticket. If the ticket does not state
+        something, say that it is not stated. Do not invent procedures, limits
+        or safety requirements. Remind the user that a qualified person must
+        approve the work.
+      conversationStarters:
+        - Review a work ticket before the job starts
+        - What is missing from this work ticket?
+      actions:
+        - get-work-ticket
+  action:
+    - key: get-work-ticket
+      name: Get work ticket
+      function: getWorkTicket
+      actionVerb: GET
+      description: >
+        Reads one Jira work item by its key and returns its summary,
+        description, status, labels, priority and assignee, so the agent can
+        review the planned work.
+      inputs:
+        issueKey:
+          title: Work item key
+          type: string
+          required: true
+          description: |
+            "The Jira work item key of the work ticket to review, for example OPS-12"
+  function:
+    - key: getWorkTicket
+      handler: index.getWorkTicket
+permissions:
+  scopes:
+    - read:jira-work
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/4e54c5b4-1aff-443b-8a8d-6402bade6a8f
