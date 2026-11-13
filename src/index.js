@@ -1,4 +1,4 @@
-// Work Permit Copilot - backend functions for the Rovo agent actions.
+// Rad Work Order Reviewer - backend functions for the Rovo agent actions.
 // Each exported function is wired to an action in manifest.yml.
 
 import api, { route } from '@forge/api';
@@ -33,12 +33,12 @@ function adfToText(node) {
  * throwing, so the agent can explain the problem to the user.
  */
 export async function getWorkOrder(payload) {
-  // Normalise the key the agent passed in, e.g. " ops-12 " -> "OPS-12".
+  // Normalise the key the agent passed in, e.g. " wo-12 " -> "WO-12".
   const issueKey = String((payload && payload.issueKey) || '').trim().toUpperCase();
 
   // Reject anything that does not look like a Jira key before calling the API.
   if (!/^[A-Z][A-Z0-9_]*-\d+$/.test(issueKey)) {
-    return { error: 'That does not look like a work item key. Expected a format like OPS-12.' };
+    return { error: 'That does not look like a work item key. Expected a format like WO-12.' };
   }
 
   // Ask Jira only for the fields we use. The route helper escapes the key.
@@ -99,13 +99,11 @@ function storageToText(html) {
 }
 
 /**
- * Action: get-reference-cards
- * Reads the NISP-RP reference cards from Confluence and returns their text.
- * Each card lists the checks a work order should satisfy and the NISP section
- * each check comes from. An optional documentNumber (for example "003")
- * returns only the matching card.
+ * Reads every NISP-RP reference card page from the Confluence reference space.
+ * Returns { pages } on success or { error } with a message the agent can
+ * relay. Shared by the two actions below so they always see the same cards.
  */
-export async function getReferenceCards(payload) {
+async function loadCardPages() {
   const headers = { headers: { Accept: 'application/json' } };
 
   // Step 1: find the numeric id of the reference space from its key.
@@ -121,31 +119,96 @@ export async function getReferenceCards(payload) {
     return { error: `Reference space ${REFERENCE_SPACE_KEY} was not found.` };
   }
 
-  // Step 2: read the pages in that space, including their body text.
+  // Step 2: read the pages in that space, including their body.
   const pagesResponse = await api
     .asApp()
     .requestConfluence(
-      route`/wiki/api/v2/spaces/${spaces[0].id}/pages?body-format=storage&limit=25`,
+      route`/wiki/api/v2/spaces/${spaces[0].id}/pages?body-format=storage&limit=50`,
       headers
     );
   if (!pagesResponse.ok) {
     console.error(`Confluence returned status ${pagesResponse.status} when reading pages`);
     return { error: `Could not read the reference cards (status ${pagesResponse.status}).` };
   }
-  const pages = (await pagesResponse.json()).results || [];
+  const results = (await pagesResponse.json()).results || [];
 
-  // Keep only the NISP cards, and only the requested one if a number was given.
-  const wanted = String((payload && payload.documentNumber) || '').replace(/\D/g, '');
-  const cards = pages
+  // Keep only the NISP cards and work out each card's review status.
+  const pages = results
     .filter((page) => /NISP-RP-\d+/.test(page.title))
+    .map((page) => {
+      const html = page.body && page.body.storage ? page.body.storage.value : '';
+      return {
+        title: page.title,
+        html,
+        status: /Card status:\s*REVIEWED/.test(storageToText(html)) ? 'REVIEWED' : 'DRAFT',
+      };
+    });
+  return { pages };
+}
+
+/**
+ * Action: get-reference-cards
+ * Returns the text of the NISP-RP reference cards. Each card lists the checks
+ * a Work Order should satisfy and the NISP section each check comes from.
+ * Draft cards are left out unless includeDrafts is "yes". An optional
+ * documentNumber (for example "003") returns only the matching card.
+ */
+export async function getReferenceCards(payload) {
+  const loaded = await loadCardPages();
+  if (loaded.error) {
+    return loaded;
+  }
+
+  const wanted = String((payload && payload.documentNumber) || '').replace(/\D/g, '');
+  const includeDrafts = /^(yes|true)$/i.test(String((payload && payload.includeDrafts) || '').trim());
+
+  const cards = loaded.pages
     .filter((page) => !wanted || page.title.includes(`NISP-RP-${wanted.padStart(3, '0')}`))
-    .map((page) => ({
-      title: page.title,
-      text: storageToText(page.body && page.body.storage ? page.body.storage.value : ''),
-    }));
+    .filter((page) => includeDrafts || page.status === 'REVIEWED')
+    .map((page) => ({ title: page.title, status: page.status, text: storageToText(page.html) }));
 
   if (cards.length === 0) {
     return { error: 'No NISP reference cards were found.' };
   }
   return { cards };
+}
+
+/**
+ * Action: list-capabilities
+ * Tells the agent exactly what it can and cannot do, built from the cards
+ * that exist right now. The agent must describe itself only from this list,
+ * so it never promises a check that no reviewed card supports.
+ */
+export async function listCapabilities() {
+  const loaded = await loadCardPages();
+  if (loaded.error) {
+    return loaded;
+  }
+
+  // The first cell of each table row is the name of a check. The header row
+  // uses <th>, so it is skipped automatically.
+  const checkNames = (html) =>
+    (html.match(/<tr[^>]*>\s*<td[^>]*>(.*?)<\/td>/g) || [])
+      .map((row) => storageToText(row).replace(/\s*\|\s*$/, '').trim())
+      .filter(Boolean);
+
+  const describe = (page) => ({ card: page.title, checks: checkNames(page.html) });
+
+  return {
+    canDo: [
+      'Read one Jira Work Order by its key.',
+      'Compare that Work Order with the reviewed reference cards listed below.',
+      'Report conflicts, missing items, covered items and reminders, with the NISP section for each.',
+      'Answer a narrow question about one Work Order using the same cards.',
+      'Include draft cards when the person explicitly asks, marked as not yet reviewed.',
+    ],
+    cannotDo: [
+      'Approve, reject or authorize work.',
+      'Create, edit or comment on a Work Order or a Rad Work Permit.',
+      'Check anything that is not in a reference card.',
+      'Read documents outside the reference cards and the Work Order.',
+    ],
+    reviewedCards: loaded.pages.filter((page) => page.status === 'REVIEWED').map(describe),
+    draftCards: loaded.pages.filter((page) => page.status === 'DRAFT').map((page) => page.title),
+  };
 }

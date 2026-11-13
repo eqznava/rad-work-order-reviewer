@@ -2,3 +2,4 @@ node_modules/
 .backup-template/
 .DS_Store
 .env
+reference-docs/
