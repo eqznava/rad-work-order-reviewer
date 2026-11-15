@@ -251,9 +251,19 @@ export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
     else add('notNeeded', `${C}, 6.1.3`, 'Air sampling: none of the conditions read from the WO apply.');
     if (reasons.length && (wo.airNegated || !wo.airLine)) add('missing', `${C}, 5.2.1 - 5.2.3`, 'The planned air sample type (breathing zone, work area or general area) is not stated.');
 
-    if (wo.alphaLevel !== null) add('covered', `${C}, 5.3.1 - 5.3.3`, `The area is identified as Alpha Level ${wo.alphaLevel}.`);
+    // Alpha. Looking for alpha is an RP obligation whether or not the WO
+    // mentions it: smears above 20,000 dpm/100 cm2 beta-gamma are analyzed for
+    // alpha (NISP-RP-002, 6.6.3), and the ratio sets the Alpha Level.
+    const alphaSmears = wo.contamination !== null && wo.contamination > 20000;
+    const smearRule = `at least 10% of the smears, 3 at a minimum, taking those with the higher contamination, are analyzed for alpha because beta-gamma contamination of ${wo.contamination !== null ? fmt(wo.contamination) : ''} dpm/100 cm2 is above 20,000 dpm/100 cm2`;
+    if (wo.alphaLevel !== null) {
+      add('covered', `${C}, 5.3.1 - 5.3.3`, `The area is identified as Alpha Level ${wo.alphaLevel}.`);
+      if (wo.alphaLevel === 3) add('duringJob', 'NISP-RP-002, 6.6.3 b', 'Alpha Level 3 Area: at least 50% of the smears from this job are analyzed for alpha to evaluate the magnitude and extent of the alpha contamination.');
+      else if (alphaSmears) add('duringJob', 'NISP-RP-002, 6.6.3 a', `Alpha Level ${wo.alphaLevel} Area: ${smearRule}.`);
+    } else if (wo.alphaNotEvaluated && alphaSmears) add('conflicts', `NISP-RP-002, 6.6.3 a; ${C}, 5.3.1 - 5.3.3`, `The WO says alpha contamination was not evaluated, but ${smearRule}. Without that result the Alpha Level of the area is unknown.`);
     else if (wo.alphaNotEvaluated) add('missing', `${C}, 5.3.1 - 5.3.3`, 'The WO says alpha contamination was not evaluated, so the Alpha Level of the area is unknown.');
-    else add('missing', `${C}, 5.3.1 - 5.3.3`, 'The WO does not state the Alpha Level of the area.');
+    else if (alphaSmears) add('missing', `NISP-RP-002, 6.6.3 a; ${C}, 5.3.1 - 5.3.3`, `The WO does not state the Alpha Level of the area or any alpha result; ${smearRule}.`);
+    else add('missing', `${C}, 5.3.1 - 5.3.3`, 'The WO does not state the Alpha Level of the area. Looking for alpha contamination is part of the survey: read the survey for the alpha results of the area and the component.');
 
     const pasApplies = wo.alphaLevel === 3 || (wo.alphaLevel === 2 && Boolean(wo.airborneWord));
     const pasWhy = wo.alphaLevel === 3 ? 'the work is in an Alpha Level 3 Area' : 'it is aggressive work in an Alpha Level 2 Area';

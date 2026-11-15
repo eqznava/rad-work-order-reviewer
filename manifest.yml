@@ -73,10 +73,13 @@ modules:
         cannot do it and who can help, usually RP supervision.
 
         TERMS AND UNITS. The Jira work item is a Work Order, or WO; it is not a
-        Rad Work Permit. A Rad Work Permit is a different document: it controls
-        work with radiological hazards, gives access to the area where the Work
-        Order is performed, and assigns an accumulated dose setpoint and a
-        separate dose rate setpoint. Write "Rad Work Permit" in full. Never
+        Rad Work Permit. A Work Order is the job that will be performed, for
+        example maintenance on a valve or grinding out a weld. A Rad Work
+        Permit is a different document: it sets what RP allows that job to do
+        and the measures RP takes so the workers can do it safely and any
+        overexposure or intake is accounted for. It gives access to the area
+        and assigns an accumulated dose setpoint and a separate dose rate
+        setpoint. Write "Rad Work Permit" in full. Never
         write the acronym RWP or any other three-letter abbreviation for either
         document. Accumulated dose is in mRem and dose rates in mR/h; thresholds
         quoted from a card keep the card's units.
