@@ -80,6 +80,7 @@ export function parseWorkOrder(text) {
     breachWord,
     diving: /\bdiv(er|ing)\b/i.test(task),
     radiography: /radiograph/i.test(task),
+    strokeTest: /stroke test|leak (test|check)|cycl\w+ (of )?the valve/i.test(task),
     remoteCamera: /\bcamera/i.test(t),
     remoteAudio: /audio communication|radio contact|constant communication|in communication with/i.test(t),
     remoteTelemetry: /telemetry|teledosimetry|remote monitoring/i.test(t),
@@ -202,7 +203,17 @@ export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
     if (absent.length === 0) add('covered', `${C}, 6.1.5, 6.1.6`, `Dose rates are stated: ${fmt(wo.contact)} mR/h contact, ${fmt(wo.at30cm)} mR/h at 30 cm, ${fmt(wo.generalArea)} mR/h general area.`);
     else add('missing', `${C}, 6.1.5, 6.1.6`, `Dose rates not stated: ${absent.join(', ')}.`);
 
-    if (wo.contamination === null) add('missing', `${C}, 6.1.10, 6.5.1`, 'The contamination level of the work area is not stated, so the beta dose rate and discrete particle checks could not be made.');
+    if (wo.contamination === null) {
+      // No contamination level in the WO: point to the survey instead of
+      // stopping, and plan a survey when a component or system is opened.
+      const where = wo.surveyNumber ? `Read survey ${wo.surveyNumber} for the contamination levels of the area and the component before the job` : 'Read the latest survey of the area and the component for its contamination levels before the job';
+      const opened = wo.breachWord ? ` This job opens a component or system ("${wo.breachWord.toLowerCase()}"), so` : ' If the job opens a component or system,';
+      // "High" follows the High Radiation Area definition: more than 100 mrem
+      // in 1 hour at 30 cm (NISP-RP-013, 3.72).
+      const highDose = wo.breachWord && wo.at30cm !== null && wo.at30cm > 100 ? ` Field practice from a senior RP technician: the 30 cm dose rate of ${fmt(wo.at30cm)} mR/h is above the High Radiation Area level (100 mrem in 1 hour at 30 cm), so expect high contamination inside the component.` : '';
+      const leak = wo.strokeTest ? ' The task includes a valve stroke test and the WO does not say why. Field practice from a senior RP technician: if the test is looking for leakage at the seals, expect a possible leak of radioactive material and be ready to survey for it.' : '';
+      add('missing', 'NISP-RP-010, 6.2.1 a, c; NISP-RP-002, 6.1.10, 6.5.1', `The WO does not state the contamination level. ${where}; beta dose rate measurements apply above 500,000 dpm/100 cm2 and discrete particle wipes above 100,000 dpm/100 cm2.${opened} survey immediately after it is opened, because conditions can change with a system breach.${highDose}${leak}`);
+    }
     else {
       if (wo.contamination > 500000 && !/beta dose/i.test(text)) add('missing', `${C}, 6.1.10`, `Beta dose rates are not stated; they are measured because contamination of ${fmt(wo.contamination)} dpm/100 cm2 is above 500,000 dpm/100 cm2.`);
       else if (wo.contamination <= 500000) add('notNeeded', `${C}, 6.1.10`, `Beta dose rates: contamination of ${fmt(wo.contamination)} dpm/100 cm2 is not above 500,000 dpm/100 cm2.`);
@@ -211,6 +222,7 @@ export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
     }
 
     if (wo.noHotSpots) add('covered', `${C}, 6.9.5 a`, 'The survey reports no hot spots.');
+    if (wo.strokeTest && wo.contamination !== null) add('duringJob', 'NISP-RP-010, 6.2.1 c', 'The task includes a valve stroke test. Field practice from a senior RP technician: if the test is looking for leakage at the seals, expect a possible leak of radioactive material; survey immediately if a leak is suspected.');
     if (wo.rateSetpoint !== null) add('duringJob', `${C}, 6.1.9`, `RP supervision is notified if measured dose rates deviate from the range on the Rad Work Permit (dose rate setpoint ${fmt(wo.rateSetpoint)} mR/h).`);
   }
 
