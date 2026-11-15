@@ -75,11 +75,14 @@ export function parseWorkOrder(text) {
     multiBadging: /multi-?badg|reposition/i.test(t),
     dosimetersOptional: /dosimeters? (is|are) optional/i.test(t),
     continueOnAlarm: /dosimeter alarms?, continue/i.test(t),
-    seniorTechnician: /senior technician/i.test(t),
+    seniorTechnician: /senior technician|ANSI[ -]?(N?18\.1|\/?ANS[ -]?3\.1|3\.1)/i.test(t),
     airborneWord,
     breachWord,
     diving: /\bdiv(er|ing)\b/i.test(task),
     radiography: /radiograph/i.test(task),
+    remoteCamera: /\bcamera/i.test(t),
+    remoteAudio: /audio communication|radio contact|constant communication|in communication with/i.test(t),
+    remoteTelemetry: /telemetry|teledosimetry|remote monitoring/i.test(t),
   };
 }
 
@@ -107,8 +110,16 @@ export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
     if (wo.radWorkPermit) add('covered', `${C}, 6.1.1, 6.1.2`, `Rad Work Permit ${wo.radWorkPermit} is identified.`);
     else add('missing', `${C}, 6.1.1, 6.1.2`, 'The WO does not identify the Rad Work Permit.');
 
-    if (wo.coverage) add('covered', `${C}, Attachment 1`, `Coverage type is stated: ${wo.coverage}.`);
-    else add('missing', `${C}, Attachment 1`, 'The WO does not state the coverage type (continuous or intermittent).');
+    // Coverage. When stay time tracking applies, a technician must give it
+    // continuous attention and keep direct communication with the workers.
+    // Continuous coverage can be remote, but only with camera, audio and
+    // telemetry together (Attachment 1).
+    const remoteParts = [['remote camera surveillance', wo.remoteCamera], ['audio communication with the work area', wo.remoteAudio], ['telemetry', wo.remoteTelemetry]];
+    const remoteMissing = remoteParts.filter((part) => !part[1]).map((part) => part[0]);
+    if (!wo.coverage) add('missing', `${C}, Attachment 1`, 'The WO does not state the coverage type (continuous or intermittent).');
+    else if (wo.coverage === 'intermittent' && stayRequired && remoteMissing.length === 0) add('covered', `${C}, Attachment 1, 6.4.2 b`, 'The technician is not continuously at the work site, but coverage of the activity is continuous by remote monitoring: camera, audio communication and telemetry are stated.');
+    else if (wo.coverage === 'intermittent' && stayRequired) add('conflicts', `${C}, 6.4.2 b, 6.4.3, Attachment 1`, `The WO assigns intermittent coverage, but stay time tracking applies (30 cm dose rate of ${fmt(workRate)} mR/h is above 1,500 mrem/hour). Tracking needs a technician giving it continuous attention and direct communication with the workers. Coverage can be continuous without the technician at the work site only by remote monitoring, and the WO does not state: ${remoteMissing.join(', ')}.`);
+    else add('covered', `${C}, Attachment 1`, `Coverage type is stated: ${wo.coverage}.`);
 
     if (wo.rpNotAtBrief) add('conflicts', `${C}, 6.1.4`, 'The WO says RP attendance is not required at the prejob brief, but RP communicates with the workers before the job so they understand the radiological conditions, protective requirements and work restrictions.');
     else if (wo.prejobCompleted) add('covered', `${C}, 6.1.4, 6.1.6`, 'The prejob brief is marked as completed.');
@@ -173,8 +184,8 @@ export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
     if (wo.diving) senior.push('the work is a diving activity');
     if (wo.radiography) senior.push('the work is radiography');
     if (wo.airborneWord && /grind|weld|machin/i.test(wo.airborneWord) && wo.contamination !== null && wo.contamination > 50000) senior.push(`${wo.airborneWord.toLowerCase()} on material with ${fmt(wo.contamination)} dpm/100 cm2, above 50,000 dpm/100 cm2`);
-    if (senior.length && wo.seniorTechnician) add('covered', `${C}, Attachment 1`, 'A Senior Technician is assigned to lead the coverage.');
-    else if (senior.length) add('missing', `${C}, Attachment 1`, `The WO does not state that a Senior Technician leads the job coverage. It applies because ${senior.join('; ')}.`);
+    if (senior.length && wo.seniorTechnician) add('covered', `${C}, Attachment 1`, 'A Senior Technician is assigned to the coverage.');
+    else if (senior.length) add('missing', `${C}, Attachment 1`, `The WO does not state that a Senior Technician leads the job coverage. It applies because ${senior.join('; ')}. The ANSI standard that defines a Senior Technician is set by the site Technical Specifications or Quality Assurance Plan.`);
 
     if (wo.doseSetpoint !== null) add('duringJob', `${C}, 6.3.5`, `A worker leaves the area when cumulative dose exceeds 80% of the ${fmt(wo.doseSetpoint)} mRem setpoint, which is ${fmt(0.8 * wo.doseSetpoint)} mRem.`);
     else add('duringJob', `${C}, 6.3.5`, 'A worker leaves the area when cumulative dose exceeds 80% of the dose setpoint.');
