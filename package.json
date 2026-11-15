@@ -7,5 +7,8 @@
   "license": "MIT",
   "dependencies": {
     "@forge/api": "^8.5.0"
+  },
+  "scripts": {
+    "test": "node test/run.mjs"
   }
 }

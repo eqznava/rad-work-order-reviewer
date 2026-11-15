@@ -2,6 +2,7 @@
 // Each exported function is wired to an action in manifest.yml.
 
 import api, { route } from '@forge/api';
+import { reviewWorkOrder } from './engine.js';
 
 /**
  * Jira stores rich text (like the description) in a JSON format called
@@ -210,5 +211,35 @@ export async function listCapabilities() {
     ],
     reviewedCards: loaded.pages.filter((page) => page.status === 'REVIEWED').map(describe),
     draftCards: loaded.pages.filter((page) => page.status === 'DRAFT').map((page) => page.title),
+  };
+}
+
+/**
+ * Action: review-work-order
+ * The full review. Reads the Work Order, checks which reference cards are
+ * REVIEWED, and runs the rules engine in src/engine.js. Every finding, number
+ * and section in the result is computed by code; the agent only presents it.
+ */
+export async function reviewWorkOrderAction(payload) {
+  const workOrder = await getWorkOrder(payload);
+  if (workOrder.error) {
+    return workOrder;
+  }
+
+  // Only cards marked REVIEWED in Confluence are applied.
+  const loaded = await loadCardPages();
+  if (loaded.error) {
+    return loaded;
+  }
+  const reviewed = loaded.pages
+    .filter((page) => page.status === 'REVIEWED')
+    .map((page) => (page.title.match(/NISP-RP-(\d{3})/) || [])[1])
+    .filter(Boolean);
+
+  const result = reviewWorkOrder(workOrder.description || '', reviewed);
+  return {
+    key: workOrder.key,
+    summary: workOrder.summary,
+    ...result,
   };
 }
