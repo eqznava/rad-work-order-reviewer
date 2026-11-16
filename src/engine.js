@@ -2,7 +2,7 @@
 // Pure functions with no Forge imports, so they can be unit tested with Node.
 // The engine reads labelled fields from the Work Order text and applies fixed
 // rules. The language model never decides a finding: it only presents them.
-// This engine helps NISP-RP-010, 002 and 003 by this moment.
+// This engine covers NISP-RP-010, 002 and 003 at this moment.
 
 // ---- Small helpers ---------------------------------------------------------
 
