@@ -269,7 +269,14 @@ export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
       add('covered', airSource, `Air sampling is planned ("${wo.airLine}").`);
       if (!wo.airType) add('missing', `${C}, 5.2.1 - 5.2.3`, 'The planned air sample type (breathing zone, work area or general area) is not stated.');
     } else if (wo.airLine && !wo.airNegated) add('covered', `${C}, 6.1.3`, `Air sampling is planned ("${wo.airLine}").`);
-    else add('notNeeded', `${C}, 6.1.3`, 'Air sampling: none of the conditions read from the WO apply.');
+    else if (wo.contamination == null || wo.alphaLevel == null) {
+      // The decision depends on values the WO does not give, so say so
+      // instead of declaring air sampling "not needed".
+      const unknown = [];
+      if (wo.contamination == null) unknown.push('the contamination level');
+      if (wo.alphaLevel == null) unknown.push('the Alpha Level');
+      add('notNeeded', `${C}, 6.1.3`, `Air sampling: no condition read from the WO applies, but ${unknown.join(' and ')} ${unknown.length > 1 ? 'are' : 'is'} not stated, so the conditions that depend on ${unknown.length > 1 ? 'them' : 'it'} could not be checked. Confirm against the survey.`);
+    } else add('notNeeded', `${C}, 6.1.3`, 'Air sampling: none of the conditions read from the WO apply.');
     if (reasons.length && (wo.airNegated || !wo.airLine)) add('missing', `${C}, 5.2.1 - 5.2.3`, 'The planned air sample type (breathing zone, work area or general area) is not stated.');
 
     // Alpha. Looking for alpha is an RP obligation whether or not the WO
