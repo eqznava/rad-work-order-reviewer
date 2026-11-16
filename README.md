@@ -1,10 +1,8 @@
 # Rad Work Order Reviewer
 
-A Rovo agent, built on Atlassian Forge, that reviews a radiation protection
-Work Order (WO) in Jira against reference cards kept in Confluence, before
-the job starts.
+An AI-powered Rovo agent, built on Atlassian Forge, designed to review Work Orders (WOs) in a nuclear facility through Jira by cross-referencing them against reference cards maintained in Confluence. The agent performs a pre-job compliance review to ensure that all required criteria are met and that the work is aligned with applicable Nuclear Industry Standards and established processes before execution.
 
-Built for Codegeist 2026 by a senior radiation protection technician.
+Built for Codegeist 2026 by Sergio Arturo Enriquez Nava ANSI 3.1 Radiation Protection Technician.
 
 ## The problem
 
@@ -32,7 +30,7 @@ It answers with:
 Every finding cites the NISP-RP document and section it comes from.
 
 The agent says plainly that it is an AI, that it does not approve work, and
-that a qualified radiation protection technician makes the decision.
+that a qualified ANSI 3.1 Radiation Protection Technician makes the decision.
 
 ## How it works
 
@@ -145,5 +143,5 @@ test until the expected value is updated on purpose.
 ## Built with
 
 Atlassian Forge, Rovo agents, Jira, Confluence. Development assisted by
-Claude (Anthropic). The author, a radiation protection technician, reviews
+Claude (Anthropic). Sergio Arturo Enriquez Nava ANSI 3.1 Radiation Protection Technician, reviews
 each card against the public procedures before it is marked REVIEWED.
