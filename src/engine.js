@@ -80,6 +80,9 @@ export function parseWorkOrder(text) {
     breachWord,
     diving: /\bdiv(er|ing)\b/i.test(task),
     radiography: /radiograph/i.test(task),
+    fuelDefectHistory: /fuel (cladding )?(defect|failure)s?/i.test(t),
+    suspectBetaArea: grab(t, /\b(reactor cavity|radwaste tank|drained tank|primary system)\b/i),
+    removesMaterial: /\bremov\w+/i.test(task),
     strokeTest: /stroke test|leak (test|check)|cycl\w+ (of )?the valve/i.test(task),
     remoteCamera: /\bcamera/i.test(t),
     remoteAudio: /audio communication|radio contact|constant communication|in communication with/i.test(t),
@@ -178,6 +181,23 @@ export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
       else add('notNeeded', `${C}, Attachment 8, 1.0 - 1.2`, `Dose gradient: the 30 cm dose rate of ${fmt(workRate)} mR/h is not above 100 mrem/hour.`);
     }
 
+    // Transuranics (alpha). NISP-RP-010, Attachment 6.
+    if ((wo.alphaLevel === 2 || wo.alphaLevel === 3) && wo.coverage === 'intermittent' && !stayRequired) {
+      add('missing', `${C}, Attachment 6; Attachment 1`, `The WO assigns intermittent coverage in an Alpha Level ${wo.alphaLevel} Area without stating the radiological risk of the job. Work in an Alpha Level 2 or 3 Area may be high or medium radiological risk, and high risk activities are assigned continuous coverage.`);
+    }
+    if (wo.fuelDefectHistory && (wo.breachWord || wo.airborneWord) && !wo.pasLine) {
+      add('missing', `${C}, Attachment 6, 3.0, 4.0 - 4.3`, 'The system has a fuel defect history and the job opens or works on it, but the WO does not address personal air samplers. Transuranics can be embedded in oxide layers inside piping and components, and smears may not collect them when the system is breached; intakes of transuranics are monitored with personal air samplers unless the Rad Work Permit specifies an alternative.');
+    }
+    if (wo.alphaLevel === 3) {
+      add('duringJob', `${C}, Attachment 6, 7.1 - 7.3; NISP-RP-002, 6.7.4`, 'If the beta-gamma to alpha ratio is 50 or less: workers frisk with an alpha detector when exiting, equipment and materials are segregated until surveyed for release from alpha controls, and the posting carries "Alpha Frisking/Monitoring Required Upon Exit".');
+      if (wo.removesMaterial) add('duringJob', `${C}, Attachment 6, 6.0`, 'Equipment and materials removed from this Alpha Level 3 Area are packaged and labeled so that people handling them know significant transuranic contamination may be present.');
+    }
+
+    // Discrete radioactive particles (beta). NISP-RP-010, Attachment 5.
+    if (wo.contamination !== null && wo.contamination > 100000) {
+      add('duringJob', `${C}, Attachment 5, 2.0, 6.1, 6.2`, 'If discrete radioactive particles are present, the Rad Work Permit sets how often the outer protective clothing is surveyed, by particle dose rate with an open window ion chamber: above 20 to 1,200 mrem/hour, every 3 hours or less; above 1,200 to 2,500, every 1.5 hours or less; above 2,500 to 5,000, every 40 minutes or less; above 5,000, every 10 minutes or less. A particle on a worker reading above 50,000 ccpm or above 5 mrem/hour is captured and RP supervision is notified.');
+    }
+
     // Senior Technician coverage.
     const senior = [];
     if (stayRequired) senior.push('stay time monitoring is required');
@@ -211,8 +231,9 @@ export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
       // "High" follows the High Radiation Area definition: more than 100 mrem
       // in 1 hour at 30 cm (NISP-RP-013, 3.72).
       const highDose = wo.breachWord && wo.at30cm !== null && wo.at30cm > 100 ? ` Field practice from a senior RP technician: the 30 cm dose rate of ${fmt(wo.at30cm)} mR/h is above the High Radiation Area level (100 mrem in 1 hour at 30 cm), so expect high contamination inside the component.` : '';
+      const betaArea = wo.suspectBetaArea ? ` The work is in a ${wo.suspectBetaArea.toLowerCase()}, one of the kinds of area where contamination above 500,000 dpm/100 cm2 is known or suspected and beta dose rates are measured.` : '';
       const leak = wo.strokeTest ? ' The task includes a valve stroke test and the WO does not say why. Field practice from a senior RP technician: if the test is looking for leakage at the seals, expect a possible leak of radioactive material and be ready to survey for it.' : '';
-      add('missing', 'NISP-RP-010, 6.2.1 a, c; NISP-RP-002, 6.1.10, 6.5.1', `The WO does not state the contamination level. ${where}; beta dose rate measurements apply above 500,000 dpm/100 cm2 and discrete particle wipes above 100,000 dpm/100 cm2.${opened} survey immediately after it is opened, because conditions can change with a system breach.${highDose}${leak}`);
+      add('missing', 'NISP-RP-010, 6.2.1 a, c; NISP-RP-002, 6.1.10, 6.5.1', `The WO does not state the contamination level. ${where}; beta dose rate measurements apply above 500,000 dpm/100 cm2 and discrete particle wipes above 100,000 dpm/100 cm2.${opened} survey immediately after it is opened, because conditions can change with a system breach.${betaArea}${highDose}${leak}`);
     }
     else {
       if (wo.contamination > 500000 && !/beta dose/i.test(text)) add('missing', `${C}, 6.1.10`, `Beta dose rates are not stated; they are measured because contamination of ${fmt(wo.contamination)} dpm/100 cm2 is above 500,000 dpm/100 cm2.`);
