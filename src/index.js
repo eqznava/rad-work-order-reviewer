@@ -195,28 +195,35 @@ export async function listCapabilities() {
 
   const describe = (page) => ({ card: page.title, checks: checkNames(page.html) });
 
+  // Split the reviewed cards: the ones with rules in the engine, and the
+  // ones without. Cards without rules go into cannotDo as plain sentences,
+  // so the model has nothing to present as a check it does not perform.
+  const number = (page) => (page.title.match(/NISP-RP-(\d{3})/) || [])[1];
+  const reviewed = loaded.pages.filter((page) => page.status === 'REVIEWED');
+  const applied = reviewed.filter((page) => RULE_CARDS.includes(number(page)));
+  const withoutRules = reviewed.filter((page) => !RULE_CARDS.includes(number(page)));
+
   return {
+    answerFirst:
+      `I check a Work Order against ${applied.length} reference cards: ` +
+      applied.map((page) => `NISP-RP-${number(page)}`).join(', ') + '.' +
+      (withoutRules.length
+        ? ` ${withoutRules.length} more cards are reviewed, but their rules are not written yet, so I do not check them.`
+        : ''),
     canDo: [
       'Read one Jira Work Order by its key.',
-      'Compare that Work Order with the cards listed under appliedInReview: reviewed cards whose requirements are written as rules.',
+      'Check that Work Order against the cards listed in checkedCards, and only those.',
       'Report conflicts, missing items, covered items and reminders, with the NISP section for each.',
       'Answer a narrow question about one Work Order using the same cards.',
-      'Include draft cards when the person explicitly asks, marked as not yet reviewed.',
     ],
     cannotDo: [
       'Approve, reject or authorize work.',
       'Create, edit or comment on a Work Order or a Rad Work Permit.',
-      'Check anything that is not in a reference card.',
-      'Check the cards listed under reviewedWithoutRules: they are reviewed, but their rules are not written yet.',
+      'Check anything that is not in the cards listed in checkedCards.',
       'Read documents outside the reference cards and the Work Order.',
+      ...withoutRules.map((page) => `Check ${page.title.replace(/\s*\(reference card\)/, '')}: the card is reviewed, but its rules are not written yet.`),
     ],
-    appliedInReview: loaded.pages
-      .filter((page) => page.status === 'REVIEWED' && RULE_CARDS.includes((page.title.match(/NISP-RP-(\d{3})/) || [])[1]))
-      .map(describe),
-    reviewedWithoutRules: loaded.pages
-      .filter((page) => page.status === 'REVIEWED' && !RULE_CARDS.includes((page.title.match(/NISP-RP-(\d{3})/) || [])[1]))
-      .map((page) => page.title),
-    draftCards: loaded.pages.filter((page) => page.status === 'DRAFT').map((page) => page.title),
+    checkedCards: applied.map(describe),
   };
 }
 
