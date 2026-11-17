@@ -59,8 +59,13 @@ The Confluence space `RPREF` holds one card per procedure. A card is a
 paraphrase of the requirements with the section number and a link to the
 public source, not a copy of the procedure text.
 
-Each card carries `Card status: REVIEWED` or `Card status: DRAFT`. The
-engine applies only the rules of REVIEWED cards. Today those are:
+Each card carries `Card status: REVIEWED` or `Card status: DRAFT`. A card is
+marked REVIEWED only after an ANSI 3.1 Radiation Protection Technician has
+checked it against the source document. The engine never applies a DRAFT
+card.
+
+All 13 cards were reviewed on 17 Nov 2026. Rules are written in the engine
+for three of them:
 
 | Card | Subject |
 |---|---|
@@ -68,9 +73,10 @@ engine applies only the rules of REVIEWED cards. Today those are:
 | NISP-RP-002 | Radiation and contamination surveys |
 | NISP-RP-003 | Radiological air sampling |
 
-Ten more cards (001, 004 to 009, 011 to 013) are in the space as DRAFT.
-The agent shows them only when asked, in a separate section, and never
-counts them.
+The other ten (001, 004 to 009, 011 to 013) are reviewed, but their rules
+are not written yet. The agent says so when asked what it checks, and never
+claims to have checked them. Reviewed knowledge and written rules are kept
+apart on purpose: a card can be correct and still not be code.
 
 ### Agent actions
 
@@ -129,13 +135,14 @@ test until the expected value is updated on purpose.
 - It is a review aid, not an approval. It can miss things.
 - It reads Work Orders written with labelled fields. Free text that does
   not follow the format is reported under "Could not read from the WO".
-- Three of thirteen procedures have rules today.
+- Three of thirteen reviewed procedures have rules today.
 - Some findings are field practice rather than procedure; those are
   labelled as such.
 
 ## What is next
 
-- Rules for the remaining cards, starting with 004 and 005.
+- Rules for the ten reviewed cards that have none yet, starting with 004
+  and 005.
 - Cross-check against the survey record instead of the WO text alone.
 - Save the review as a Confluence page for the job file.
 - A connector for sites that keep their records in a local database.

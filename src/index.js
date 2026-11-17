@@ -2,7 +2,7 @@
 // Each exported function is wired to an action in manifest.yml.
 
 import api, { route } from '@forge/api';
-import { reviewWorkOrder } from './engine.js';
+import { reviewWorkOrder, RULE_CARDS } from './engine.js';
 
 /**
  * Jira stores rich text (like the description) in a JSON format called
@@ -198,7 +198,7 @@ export async function listCapabilities() {
   return {
     canDo: [
       'Read one Jira Work Order by its key.',
-      'Compare that Work Order with the reviewed reference cards listed below.',
+      'Compare that Work Order with the cards listed under appliedInReview: reviewed cards whose requirements are written as rules.',
       'Report conflicts, missing items, covered items and reminders, with the NISP section for each.',
       'Answer a narrow question about one Work Order using the same cards.',
       'Include draft cards when the person explicitly asks, marked as not yet reviewed.',
@@ -207,9 +207,15 @@ export async function listCapabilities() {
       'Approve, reject or authorize work.',
       'Create, edit or comment on a Work Order or a Rad Work Permit.',
       'Check anything that is not in a reference card.',
+      'Check the cards listed under reviewedWithoutRules: they are reviewed, but their rules are not written yet.',
       'Read documents outside the reference cards and the Work Order.',
     ],
-    reviewedCards: loaded.pages.filter((page) => page.status === 'REVIEWED').map(describe),
+    appliedInReview: loaded.pages
+      .filter((page) => page.status === 'REVIEWED' && RULE_CARDS.includes((page.title.match(/NISP-RP-(\d{3})/) || [])[1]))
+      .map(describe),
+    reviewedWithoutRules: loaded.pages
+      .filter((page) => page.status === 'REVIEWED' && !RULE_CARDS.includes((page.title.match(/NISP-RP-(\d{3})/) || [])[1]))
+      .map((page) => page.title),
     draftCards: loaded.pages.filter((page) => page.status === 'DRAFT').map((page) => page.title),
   };
 }

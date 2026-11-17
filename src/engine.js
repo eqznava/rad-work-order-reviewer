@@ -98,7 +98,12 @@ export function parseWorkOrder(text) {
  * document numbers such as ['010', '002', '003'].
  * Returns findings grouped by section plus the values that were read.
  */
-export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
+// Cards whose requirements are written as rules in this engine. A card can be
+// REVIEWED in Confluence and still have no rules here; the agent must say so
+// instead of implying it checked that card.
+export const RULE_CARDS = ['010', '002', '003'];
+
+export function reviewWorkOrder(text, reviewed = RULE_CARDS) {
   const wo = parseWorkOrder(text);
   const out = { conflicts: [], missing: [], covered: [], notNeeded: [], duringJob: [] };
   const add = (group, source, sentence) => out[group].push({ source, text: sentence });
@@ -317,7 +322,7 @@ export function reviewWorkOrder(text, reviewed = ['010', '002', '003']) {
   return {
     counts: { conflicts: out.conflicts.length, missing: out.missing.length },
     doseRateUsed: workRate === null ? null : `${fmt(workRate)} mR/h at 30 cm (field practice for maintenance on equipment)`,
-    cardsApplied: reviewed.map((number) => `NISP-RP-${number}`),
+    cardsApplied: reviewed.filter((number) => RULE_CARDS.includes(number)).map((number) => `NISP-RP-${number}`),
     couldNotRead,
     ...out,
   };
